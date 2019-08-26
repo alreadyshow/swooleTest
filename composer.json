@@ -1,0 +1,19 @@
+{
+    "name": "non/zback",
+    "description": "project for copy admin",
+    "type": "project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "alreadyshow",
+            "email": "1063957173@qq.com"
+        }
+    ],
+    "require": {},
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "common\\": "common/"
+        }
+    }
+}
