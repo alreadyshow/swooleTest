@@ -21,12 +21,14 @@ class LogHelper
                 $fileName = __DIR__ . '/../../app/Runtime/Logs/' . date('Y-m-d') . '.log';
                 break;
             case self::DATA:
-                $fileName = __DIR__ . '/../../app/Runtime/Logs/' . date('Y-m-d') . '.data';
+                $fileName = __DIR__ . '/../../app/Runtime/Data/' . date('Y-m-d') . '.data';
                 break;
             default:
                 break;
         }
-
+        if (!is_dir(dirname($fileName))) {
+            mkdir(dirname($fileName),0777,true);
+        }
         \co::writeFile($fileName, date('Y-m-d H:i:s') . ' - ' . $prefix . ' - ' . $data . "\r\n", FILE_APPEND);
     }
 }

@@ -14,4 +14,11 @@ $config = array_merge(
     );
 //\App\Servers\HttpServer::run();
 date_default_timezone_set($config['timeZone']);
+
+var_dump(SWOOLE_VERSION);
+
+if (!is_dir(dirname($config['server']['log_file']))) {
+    mkdir(dirname($config['server']['log_file']),0777,true);
+}
+
 \App\Servers\TcpServer::run($config);

@@ -9,6 +9,7 @@
 namespace App\Servers;
 
 
+use App\Pool\MysqlAr;
 use App\Pool\MysqlPool;
 use common\Helpers\LogHelper;
 use Swoole\Server;
@@ -19,18 +20,14 @@ class TcpServer
 {
     public static function run($config)
     {
-        $server = new Server('0.0.0.0', 9502, SWOOLE_PROCESS, SWOOLE_SOCK_TCP);
+        $server = new Server($config['host'], $config['port'], SWOOLE_PROCESS, SWOOLE_SOCK_TCP);
 
-        $server->set([
-            "worker_num" => 1,
-            "task_worker_num" => 1,
-            'task_enable_coroutine' => true,
-        ]);
+        $server->set($config['server']);
 
         $table = new Table(1024);
 
-        $table->column('t_name', Table::TYPE_STRING, 16);
-        $table->column('t_value', Table::TYPE_STRING, 16);
+        $table->column('t_info', Table::TYPE_STRING, 16);
+        $table->column('t_id', Table::TYPE_STRING, 16);
         $table->create();
 
 
@@ -43,28 +40,31 @@ class TcpServer
             LogHelper::writeLog("connected @ {$fd}", LogHelper::LOG, 'connectCallBack');
 
             $timer = Timer::tick(10 * 1000, function () use ($server, $fd) {
-                $server->send($fd, 'task');
+                $server->send($fd, 'aa');
             });
 
-            Timer::after(10 * 60 * 1000, function () use ($server, $fd) {
+            $status = Timer::after(10 * 60 * 1000, function () use ($server, $fd) {
                 $server->send($fd, 'close');
             });
 
-            $table->set('timer', ['t_name' => 'connect', 't_value' => $timer]);
+            LogHelper::writeLog($status . '定时器状态', LogHelper::LOG, 'connectCallBack');
+
+            foreach (Timer::list() as $timerId) {
+                LogHelper::writeLog($timerId . ' -- ' . json_encode(Timer::info($timerId), 320), LogHelper::LOG, 'connectCallBack');
+            }
+            $table->set($server->worker_id . '_' . $fd . 'timer', ['t_info' => Timer::info($timer), 't_id' => $timer]);
+            $table->set($server->worker_id . '_' . $fd . 'timerAfter', ['t_info' => Timer::info($status), 't_id' => $status]);
+
         });
 
         $server->on('Receive', function (Server $serv, $fd, $reactor_id, $data) use ($table) {
             switch ($data) {
                 case 'task':
                     //worker 连接
-                    $conn = MysqlPool::getInstance()->getConn();
                     $id = $fd + 10;
                     $sql = "select * from t_b_cash where id = {$id}";
-                    $rows = $conn->query($sql);
-                    MysqlPool::getInstance()->recycle($conn);
-                    LogHelper::writeLog($sql, LogHelper::LOG, 'receiveCallBack');
-                    LogHelper::writeLog(json_encode($rows, 320), LogHelper::DATA, 'receiveCallBack');
 
+                    MysqlAr::query($sql);
 
                     $taskId = $serv->task($fd);
                     $serv->send($fd, "任务已发布 {$taskId}");
@@ -73,7 +73,8 @@ class TcpServer
                 case 'close':
                     $serv->close($fd);
                     LogHelper::writeLog("关闭 {$fd}", LogHelper::LOG, 'receiveCallBack');
-                    $timer = $table->get('timer', 't_value');
+                    $timer = $table->get($serv->worker_id . '_' . $fd . 'timer', 't_id');
+                    LogHelper::writeLog("清除定时器 'timer' {$timer} info: " . json_encode(Timer::info($timer), 320), LogHelper::LOG, 'receiveCallBack');
                     Timer::clear($timer);
                     break;
                 default:
@@ -81,17 +82,22 @@ class TcpServer
             }
         });
 
-        $server->on('Close', function ($serv, $fd) {
+        $server->on('Close', function (Server $serv, $fd) use ($table) {
+            $timer = $table->get($serv->worker_id . '_' . $fd . 'timer', 't_id');
+            $timerAfter = $table->get($serv->worker_id . '_' . $fd . 'timerAfter', 't_id');
+            LogHelper::writeLog("清除定时器 'timer' {$timer} info: " . json_encode(Timer::info($timer), 320), LogHelper::LOG, 'closeCallBack');
+            Timer::clear($timer);
+            if (Timer::info($timerAfter)['removed'] == false) {
+                LogHelper::writeLog("清除定时器 'timerAfter' {$timerAfter} info: " . json_encode(Timer::info($timerAfter), 320), LogHelper::LOG, 'closeCallBack');
+                Timer::clear($timerAfter);
+            }
             LogHelper::writeLog("Client: {$fd} Close.", LogHelper::LOG, 'closeCallBack');
         });
 
 
         $server->on('Task', function (Server $server, Server\Task $task) use ($config) {
-            $conn = MysqlPool::getInstance()->getConn();
             $sql = "select * from t_b_cash where id = {$task->data}";
-            $rows = $conn->query($sql);
-            MysqlPool::getInstance()->recycle($conn);
-            LogHelper::writeLog($sql, LogHelper::LOG, 'taskCallBack');
+            $rows = MysqlAr::query($sql);
             $task->finish($rows);
         });
 

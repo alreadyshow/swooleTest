@@ -43,7 +43,7 @@ class MysqlPool
      */
     private function __construct($config)
     {
-        LogHelper::writeLog('实例化MysqlPool对象 config:' . json_encode($config, 320), LogHelper::LOG, 'MysqlPool');
+        LogHelper::writeLog('config:' . json_encode($config, 320), LogHelper::LOG, 'MysqlPool');
         $this->minSize = 5;
         $this->maxSize = 8;
         $this->freeTime = 300; //1h
@@ -54,7 +54,7 @@ class MysqlPool
     public static function getInstance($config = null)
     {
         if (is_null(self::$instance)) {
-            LogHelper::writeLog('重新实例化MysqlPool对象', LogHelper::LOG, 'MysqlPool');
+            LogHelper::writeLog('实例化MysqlPool对象', LogHelper::LOG, 'MysqlPool');
             if (is_null($config)) {
                 throw new \Exception('Mysql config is null');
             }
@@ -75,7 +75,7 @@ class MysqlPool
         $conn = new MySQL();
         $res = $conn->connect($this->dbConfig);
         if ($res === false) {
-            LogHelper::writeLog($conn->connect_error."", LogHelper::LOG, 'MysqlPoolConnect');
+            LogHelper::writeLog($conn->connect_error . "", LogHelper::LOG, 'MysqlPoolConnect');
         } else {
             LogHelper::writeLog("连接成功！", LogHelper::LOG, 'MysqlPoolConnect');
         }
@@ -145,7 +145,7 @@ class MysqlPool
     public function recycleFreeConn()
     {
         //每两分钟检测
-        Timer::tick(2 * 60 * 1000, function () {
+        Timer::tick((2 * 60 * 1000), function () {
             LogHelper::writeLog("当前连接数：{$this->curSize} 当前池子连接数：{$this->pool->length()} 回收检测", LogHelper::LOG, 'recycleFreeConn');
             if ($this->pool->length() < intval($this->maxSize * 0.5)) {
                 //当前请求连接较多 不回收
@@ -168,9 +168,12 @@ class MysqlPool
                 $nowTime = time();
                 $lastUsedTime = $connObj['last_used_time'];
 
-                LogHelper::writeLog("当前连接状态 {$connObj['conn']->connected}", LogHelper::LOG, 'recycleFreeConn');
-                //如果当前连接失效 则释放连接 重新创建
-                if (!$connObj['conn']->connected) {
+                //如果当前连接失效 则释放连接 重新创建 保持数据库连接
+
+                $status = $connObj['conn']->query("select 1");
+                LogHelper::writeLog('连接状态：' . json_encode($status, 320), LogHelper::LOG, 'recycleFreeConn');
+
+                if (!$status) {
                     LogHelper::writeLog("当前连接数：{$this->curSize} 当前池子连接数：{$this->pool->length()} 连接失效 补充连接", LogHelper::LOG, 'recycleFreeConn');
                     $connObj['conn']->close();
                     $this->curSize--;
