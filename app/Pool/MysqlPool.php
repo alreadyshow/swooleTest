@@ -124,8 +124,8 @@ class MysqlPool
         } else {
             $obj = $this->pool->pop();
         }
-        LogHelper::writeLog("当前连接状态：{$obj['conn']->connected}", LogHelper::LOG, 'getConn');
-        return $obj['conn']->connected ? $obj['conn'] : $this->getConn();
+        LogHelper::writeLog("获取连接：" . json_encode($obj, 320), LogHelper::LOG, 'getConn');
+        return $obj ? $obj['conn'] : $this->getConn();
     }
 
     /**
