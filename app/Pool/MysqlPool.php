@@ -151,12 +151,9 @@ class MysqlPool
                 //当前请求连接较多 不回收
                 return;
             }
+            //池子空了 不回收
             $flag = $this->pool->length();
             while ($flag > 0) {
-                //池子空了 不回收
-                if ($this->pool->isEmpty()) {
-                    break;
-                }
                 // 如果池子连接数降低 则补充连接
                 if ($this->curSize < $this->minSize) {
                     LogHelper::writeLog("当前连接数：{$this->curSize} 当前池子连接数：{$this->pool->length()} 补充连接", LogHelper::LOG, 'recycleFreeConn');
